@@ -71,11 +71,12 @@ img {
 <div id="summary" class="section level1">
 <h1>Summary</h1>
 <p>The goal of the project is to predict how users did exercise,from the data adquired using accelerometers on the belt,arm, and dumbell by 6 participants. After a data clean up, we have selected the model with best accuracy, and used that model to predict the 20 cases from the test data file.</p>
-<p>The models tested were XX,XXX, XXX and XXX and the one selected was <strong>XXX</strong> as it had the best accuracy (<strong>XXX %</strong>). The 20 cases from the test data set will be used for the grading test.</p>
+<p>The models tested were Random Forest, boosting with trees, Linear Discriminant analysis (lda), decissions trees, and Support Vector Machine. I also made a combined model usign the 2 models with best accuracy, which were <em>Random Forest</em> and <em>Support Vector Machine</em>.</p>
+<p>The one selected was the combinations of those 2 with better accuracy, as it had the best accuracy (<strong>0.9838907</strong>). The 20 cases from the test data set will be used for the grading test.</p>
 </div>
 <div id="data-clean-up" class="section level1">
 <h1>Data clean up</h1>
-<p>The first thing is to load both data sets and split the training data, making sure to read “NA” as NaN in R.</p>
+<p>The first thing is to load both data sets and split the training data, making sure to read “NA”, and “#DIV/0!” as NaN in R.</p>
 <pre class="r"><code>set.seed(6699)
 training &lt;- read.csv(&quot;pml-training.csv&quot;, na.strings=c(&quot;NA&quot;,&quot;#DIV/0!&quot;,&quot;&quot;) )
 testing  &lt;- read.csv(&quot;pml-testing.csv&quot;,  na.strings=c(&quot;NA&quot;,&quot;#DIV/0!&quot;,&quot;&quot;) )
@@ -83,9 +84,11 @@ dim(training)</code></pre>
 <pre><code>## [1] 19622   160</code></pre>
 <p>From a summary of the data, we find out that some variable have a huge numebr of NA in the value, so we remove those predictors with a high number of NA. And we will also remove from the dataset those variables which are not data from the sensor, like name or time related data:</p>
 <pre class="r"><code>cols.to.select &lt;- colSums(is.na(training))==0 #find columns with high number of NA values
-cols.to.select &lt;- cols.to.select&amp; !(names(training) %in% c('X', 'user_name', 'new_window', 'num_window', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp')) #remove those with Time information, not sensor
+cols.to.select &lt;- cols.to.select &amp; !(names(training) %in% c('X', 'user_name', 'new_window', 'num_window', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp'))
+cols.to.select.t &lt;- colSums(is.na(testing))==0 
+cols.to.select.t &lt;- cols.to.select.t &amp; !(names(testing) %in% c('X', 'user_name', 'new_window', 'num_window', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp')) 
 training &lt;- training[, cols.to.select] #remove columns not to use
-testing &lt;- testing[, cols.to.select]</code></pre>
+testing &lt;- testing[, cols.to.select.t]</code></pre>
 <p>We have reduce the dimension (number of predictor variables) down to :</p>
 <pre class="r"><code>dim(training)</code></pre>
 <pre><code>## [1] 19622    53</code></pre>
@@ -101,21 +104,13 @@ testing &lt;- testing[, cols.to.select]</code></pre>
 training.in&lt;-training[inTrain,]
 testing.in&lt;-training[-inTrain,]</code></pre>
 </div>
-<div id="basic-preprocessing" class="section level3">
-<h3>Basic preprocessing</h3>
-</div>
-</div>
-<div id="training.in-preprocesstraining.in-1-methodccenterscale" class="section level1">
-<h1>training.in&lt;-preProcess(training.in[,-1], method=c(‘center’,‘scale’) )</h1>
-</div>
-<div id="testing.in-preprocesstesting.in-1-methodccenterscale" class="section level1">
-<h1>testing.in&lt;-preProcess(testing.in[,-1], method=c(‘center’,‘scale’) )</h1>
 <div id="pca-analysis" class="section level3">
 <h3>PCA analysis</h3>
 <p>To make the model simpler, reducing the number of predictor but also the noice due to avering, we will preprocess teh data uning Principal Component Analyis (PCA)</p>
 <pre class="r"><code>preproc &lt;- preProcess(training.in[,-1], method='pca', thresh=0.99) #use the PCA preprocess
 training.pca &lt;- predict(preproc, training.in[,-1])    #apply to all vars except last one (classe) 
 testing.pca &lt;- predict(preproc, testing.in[,-1])
+testing_to_predict.pca &lt;- predict(preproc, testing[,-1])
 dim(training.pca)</code></pre>
 <pre><code>## [1] 14718    37</code></pre>
 <p>We have simplified further the model to down to 37 principal variables. Now that the data is cleaned, let’s train the different models</p>
@@ -150,7 +145,10 @@ pred.gbm   &lt;- predict(fit.gbm,testing.pca)
 pred.svm   &lt;- predict(fit.svm,testing.pca) 
 pred.lda   &lt;- predict(fit.lda,testing.pca)
 pred.rpart &lt;- predict(fit.rpart,testing.pca) </code></pre>
-<p>For each predict, we will calculate the confussion matrix, and we get the accuracy from it, to select which model is the one that we will select for the 20 entries to predict. # Conclusion</p>
+<p>For each predict, we will calculate the confussion matrix, and we get the accuracy from it, to select which model is the one that we will select for the 20 entries to predict.</p>
+</div>
+<div id="evaluation" class="section level1">
+<h1>Evaluation</h1>
 <pre class="r"><code>confusionMatrix(pred.rf, testing.pca$classe)$overall[&quot;Accuracy&quot;]</code></pre>
 <pre><code>##  Accuracy 
 ## 0.9792007</code></pre>
@@ -175,7 +173,14 @@ pred.combined &lt;- predict(fit.combined,pred.dataframe)
 confusionMatrix(pred.combined, testing.pca$classe)$overall[&quot;Accuracy&quot;]</code></pre>
 <pre><code>## Accuracy 
 ## 0.980832</code></pre>
-<p>From them confussion matrix on the combined model, we see it increases a bit the accuracy to <em>0.9840946</em> (REVIEW con sel seed), so this will be the model we will finally chose for predicting with the test data set read from the test file.</p>
+<p>From them confussion matrix on the combined model, we see it increases a bit the accuracy to <em>0.9838907</em> , so this will be the model we will finally chose for predicting with the test data set read from the test file. The increase is very minor, but we’ll use it.</p>
+<pre class="r"><code> pred.1&lt;-predict(fit.rf,testing_to_predict.pca)
+ pred.2&lt;-predict(fit.svm,testing_to_predict.pca)
+ combined.to.predict&lt;-data.frame(pred.rf=pred.1, pred.svm=pred.2)
+ results&lt;-predict(fit.combined, combined.to.predict)
+ results</code></pre>
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
+## Levels: A B C D E</code></pre>
 </div>
 
 
